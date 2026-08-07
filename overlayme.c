@@ -4,7 +4,7 @@ SRC="${1:-overlayme.c}"; VENV=".venv";
 echo "Cooking! Hold tight...."
 python3 -m venv "$VENV";
 source "$VENV/bin/activate"
-python -m pip install -q --upgrade pip cmake static-ffmpeg
+python -m pip install -q --upgrade pip zenity cmake static-ffmpeg
 mkdir -p "$VENV/src"
 [ -d "$VENV/src/raylib" ] || git clone -q --depth 1 --branch 6.0 https://github.com/raysan5/raylib.git "$VENV/src/raylib"
 cmake -S "$VENV/src/raylib" -B "$VENV/src/raylib/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$VIRTUAL_ENV" -DBUILD_SHARED_LIBS=OFF -DBUILD_EXAMPLES=OFF
