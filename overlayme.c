@@ -120,6 +120,31 @@ static void value_box(Rectangle r, const char *label, const char *value) {
            (Color){235, 237, 240, 255});
 }
 
+static float slider(Rectangle r, float value) {
+  static bool active = false;
+  Vector2 m = GetMousePosition();
+  bool hover = CheckCollisionPointRec(m, (Rectangle){r.x, r.y - 8, r.width, r.height + 16});
+
+  if (hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+    active = true;
+  if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT))
+    active = false;
+
+  if (active && IsMouseButtonDown(MOUSE_BUTTON_LEFT))
+    value = (m.x - r.x) / r.width;
+
+  value = fmaxf(0.0f, fminf(value, 1.0f));
+
+  float cy = r.y + r.height * 0.5f;
+  DrawRectangleRounded((Rectangle){r.x, cy - 2, r.width, 4}, 1.0f, 4,
+                       (Color){55, 59, 65, 255});
+  DrawRectangleRounded((Rectangle){r.x, cy - 2, r.width * value, 4}, 1.0f, 4,
+                       (Color){55, 121, 214, 255});
+  DrawCircleV((Vector2){r.x + r.width * value, cy}, 7.0f,
+              active || hover ? RAYWHITE : (Color){218, 221, 226, 255});
+  return value;
+}
+
 static void draw_filename(const char *path, float x, float y, float maxWidth) {
   const char *name = path && path[0] ? GetFileName(path) : "Not selected";
   char shown[128];
@@ -279,18 +304,26 @@ static bool pick_with_zenity(char *out, size_t outSize, const char *title,
 }
 
 static int export_apng(const char *bgPath, const char *gifPath,
-                       Rectangle overlay, const char *outPath) {
+                       Rectangle overlay, float realism, const char *outPath) {
   int x = (int)lroundf(overlay.x);
   int y = (int)lroundf(overlay.y);
   int w = (int)lroundf(overlay.width);
   int h = (int)lroundf(overlay.height);
 
+  float t = fmaxf(0.0f, fminf(realism, 1.0f));
+  float brightness = -0.035f * t;
+  float contrast = 1.0f + 0.05f * t;
+  float saturation = 1.0f - 0.08f * t;
+  float opacity = 1.0f - 0.05f * t;
+
   char filter[1024];
   snprintf(filter, sizeof(filter),
-           "[1:v]scale=%d:%d:flags=lanczos,format=rgba[ov];"
+           "[1:v]scale=%d:%d:flags=lanczos,"
+           "eq=brightness=%.4f:contrast=%.4f:saturation=%.4f,"
+           "format=rgba,colorchannelmixer=aa=%.4f[ov];"
            "[0:v]format=rgba[bg];"
            "[bg][ov]overlay=x=%d:y=%d:shortest=1:format=auto[out]",
-           w, h, x, y);
+           w, h, brightness, contrast, saturation, opacity, x, y);
 
   pid_t pid = fork();
   if (pid < 0)
@@ -425,6 +458,7 @@ int main(int argc, char **argv) {
   Vector2 dragStartImage = {0};
 
   float viewZoom = 1.0f;
+  float realism = 0.0f;
   Vector2 viewCenter = {0};
   bool panning = false;
   Vector2 panStartMouse = {0};
@@ -711,10 +745,37 @@ int main(int argc, char **argv) {
       DrawTexture(bg.texture, 0, 0, WHITE);
 
       if (gif.loaded) {
+        float t = fmaxf(0.0f, fminf(realism, 1.0f));
+        unsigned char shade = (unsigned char)(255.0f - 18.0f * t);
+        unsigned char alpha = (unsigned char)(255.0f - 13.0f * t);
+
         DrawTexturePro(gif.texture,
                        (Rectangle){0, 0, (float)gif.texture.width,
                                    (float)gif.texture.height},
-                       overlay, (Vector2){0, 0}, 0.0f, WHITE);
+                       overlay, (Vector2){0, 0}, 0.0f,
+                       (Color){shade, shade, shade, alpha});
+
+        if (t > 0.001f) {
+          int reflection = (int)(18.0f * t);
+          int edge = (int)(30.0f * t);
+          float edgeH = fmaxf(2.0f, overlay.height * 0.035f);
+
+          DrawRectangleGradientV((int)overlay.x, (int)overlay.y,
+                                 (int)overlay.width,
+                                 (int)(overlay.height * 0.30f),
+                                 (Color){255, 255, 255, (unsigned char)reflection},
+                                 BLANK);
+
+          DrawRectangleGradientV((int)overlay.x, (int)overlay.y,
+                                 (int)overlay.width, (int)edgeH,
+                                 (Color){0, 0, 0, (unsigned char)edge}, BLANK);
+
+          DrawRectangleGradientV((int)overlay.x,
+                                 (int)(overlay.y + overlay.height - edgeH),
+                                 (int)overlay.width, (int)edgeH,
+                                 BLANK,
+                                 (Color){0, 0, 0, (unsigned char)edge});
+        }
       }
       EndMode2D();
 
@@ -863,6 +924,16 @@ int main(int argc, char **argv) {
       if (button((Rectangle){x + half + gap, y, half, 36}, "Reset", true))
         set_default_overlay(&overlay, &bg, &gif);
 
+      y += 54.0f;
+      DrawText("Blend-In", (int)x, (int)y, 14,
+               (Color){190, 194, 201, 255});
+      char realismText[16];
+      snprintf(realismText, sizeof(realismText), "%.0f%%", realism * 100.0f);
+      DrawText(realismText, (int)(x + bw - MeasureText(realismText, 14)),
+               (int)y, 14, (Color){145, 149, 157, 255});
+      y += 24.0f;
+      realism = slider((Rectangle){x, y, bw, 16}, realism);
+
       // Keep the instructions quiet and out of the way.
       float hintY = sidebar.y + sidebar.height - 142.0f;
       DrawText("Wheel to zoom  |  drag to move", (int)x, (int)hintY, 13,
@@ -891,7 +962,7 @@ int main(int argc, char **argv) {
         snprintf(status, sizeof(status), "Exporting...");
         EndDrawing();
 
-        int rc = export_apng(bg.path, gif.path, overlay, out);
+        int rc = export_apng(bg.path, gif.path, overlay, realism, out);
 
         if (rc == 0)
           snprintf(status, sizeof(status), "Saved %s", GetFileName(out));
