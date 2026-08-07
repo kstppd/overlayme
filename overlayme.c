@@ -753,7 +753,7 @@ int main(int argc, char **argv) {
     float y = sidebar.y + 22.0f;
     float bw = sidebar.width - 44.0f;
 
-    DrawText("Beth's Studio", (int)x, (int)y, 25, (Color){244, 245, 247, 255});
+    DrawText("OverlayMe", (int)x, (int)y, 25, (Color){244, 245, 247, 255});
     y += 31.0f;
     DrawText("Place a GIF on an image", (int)x, (int)y, 14,
              (Color){132, 136, 144, 255});
