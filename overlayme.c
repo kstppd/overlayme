@@ -16,7 +16,7 @@ Darwin) LIBS=(-framework OpenGL -framework OpenAL -framework IOKit -framework Co
 Linux)  LIBS=(-lGL -lm -lpthread -ldl -lrt -lX11) ;;
 *) echo "Unsupported OS"; exit 1 ;;
 esac
-cc -O2 -std=c11 -I"$VIRTUAL_ENV/include" "$SRC" "$RAYLIB" -o overlay "${LIBS[@]}"
+cc -O2 -std=c11 -I"$VIRTUAL_ENV/include" "$SRC" "$RAYLIB" -o overlayme "${LIBS[@]}"
 echo "Built: ./overlayme"
 ./overlayme 
 exit
