@@ -1,32 +1,23 @@
 #if 0
 set -e
-
 SRC="${1:-overlayme.c}"
 VENV=".venv"
-
 echo "Cooking! Hold tight...."
-
 python3 -m venv "$VENV"
 source "$VENV/bin/activate"
-
 python -m pip install -q --upgrade pip zenity cmake static-ffmpeg
-
 #Force static - ffmpeg to fetch its binaries now.
 static_ffmpeg -version >/dev/null 2>&1
 static_ffprobe -version >/dev/null 2>&1
-
 FFMPEG_BIN="$VIRTUAL_ENV/bin/static_ffmpeg"
 FFPROBE_BIN="$VIRTUAL_ENV/bin/static_ffprobe"
-
 mkdir -p "$VENV/src"
-
 [ -d "$VENV/src/raylib" ] || \
     git clone -q --depth 1 --branch 6.0 \
     https://github.com/raysan5/raylib.git \
     "$VENV/src/raylib"
 
 rm -rf "$VENV/src/raylib/build"
-
 cmake \
     -S "$VENV/src/raylib" \
     -B "$VENV/src/raylib/build" \
@@ -34,15 +25,12 @@ cmake \
     -DCMAKE_INSTALL_PREFIX="$VIRTUAL_ENV" \
     -DBUILD_SHARED_LIBS=OFF \
     -DBUILD_EXAMPLES=OFF
-
 cmake --build "$VENV/src/raylib/build" \
     --parallel "$(getconf _NPROCESSORS_ONLN 2>/dev/null || \
                  sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 
 cmake --install "$VENV/src/raylib/build"
-
 RAYLIB="$(find "$VIRTUAL_ENV" -name libraylib.a | head -1)"
-
 case "$(uname -s)" in
 Darwin)
     LIBS=(
@@ -61,7 +49,6 @@ Linux)
     exit 1
     ;;
 esac
-
 clang \
     -O3 \
     -g \
@@ -75,16 +62,12 @@ clang \
     "${LIBS[@]}"
 
 echo "Built: ./overlayme"
-
 ./overlayme
-
 exit
 #endif
 
 #define _POSIX_C_SOURCE 200809L
-
 #include "raylib.h"
-
 #include <ctype.h>
 #include <errno.h>
 #include <math.h>
